@@ -1,0 +1,136 @@
+// TaskFlow database schema
+// Run: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  PRO
+  TEAM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+}
+
+enum MemberRole {
+  OWNER
+  MEMBER
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String
+  name              String
+  emailVerified     Boolean   @default(false)
+  emailVerifyToken  String?
+  resetToken        String?
+  resetTokenExpires DateTime?
+  createdAt         DateTime  @default(now())
+
+  // Stripe / billing — owner of a subscription
+  stripeCustomerId String?       @unique
+  subscription     Subscription?
+
+  memberships    ProjectMember[]
+  assignedTasks  Task[]          @relation("AssignedTasks")
+  activityLogs   ActivityLog[]
+  invitesSent    Invite[]        @relation("InvitesSent")
+}
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  user                 User               @relation(fields: [userId], references: [id])
+  userId               String             @unique
+  plan                 Plan               @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  stripeSubscriptionId String?            @unique
+  stripePriceId        String?
+  currentPeriodEnd     DateTime?
+  trialEnd             DateTime?
+  updatedAt            DateTime           @updatedAt
+}
+
+model Project {
+  id        String   @id @default(uuid())
+  name      String
+  ownerId   String
+  createdAt DateTime @default(now())
+
+  members      ProjectMember[]
+  tasks        Task[]
+  invites      Invite[]
+  activityLogs ActivityLog[]
+}
+
+model ProjectMember {
+  id        String     @id @default(uuid())
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  user      User       @relation(fields: [userId], references: [id])
+  userId    String
+  role      MemberRole @default(MEMBER)
+  joinedAt  DateTime   @default(now())
+
+  @@unique([projectId, userId])
+}
+
+model Invite {
+  id        String   @id @default(uuid())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  email     String
+  token     String   @unique
+  invitedBy User     @relation("InvitesSent", fields: [invitedById], references: [id])
+  invitedById String
+  accepted  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId   String
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  dueDate     DateTime?
+  assignee    User?      @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  assigneeId  String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  action    String   // e.g. "created task", "moved task to Done", "invited teammate"
+  createdAt DateTime @default(now())
+}
+
+model WebhookEvent {
+  id          String   @id // Stripe event id, e.g. "evt_123"
+  type        String
+  processedAt DateTime @default(now())
+}

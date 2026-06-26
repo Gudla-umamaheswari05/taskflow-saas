@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: "Inter", sans-serif;
+  background-color: #F7F8FA;
+  color: #1B1E2B;
+}
+
+h1, h2, h3, .font-display {
+  font-family: "Sora", sans-serif;
+}
+
+/* Visible keyboard focus ring everywhere, for accessibility */
+:focus-visible {
+  outline: 2px solid #5B5FEF;
+  outline-offset: 2px;
+}
+
+/* The board's signature element: a soft left "rail" of color per column status */
+.col-todo { border-left: 3px solid #C7C9D9; }
+.col-progress { border-left: 3px solid #5B5FEF; }
+.col-done { border-left: 3px solid #2DBE6C; }
